@@ -1,6 +1,5 @@
 gradio
 opencv-python-headless
-mediapipe
 numpy
 Pillow
 fastapi

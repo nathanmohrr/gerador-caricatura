@@ -1,11 +1,20 @@
 import cv2
 import numpy as np
 from PIL import Image
-import mediapipe as mp
 import gradio as gr
 
-mp_face = mp.solutions.face_mesh
+# Try to import MediaPipe; if unavailable (slow to build on some hosts),
+# fall back to a lightweight Haar-cascade heuristic.
+try:
+    import mediapipe as mp
+    mp_face = mp.solutions.face_mesh
+    HAS_MEDIAPIPE = True
+except Exception:
+    HAS_MEDIAPIPE = False
 
+# Landmark index groups used when MediaPipe is available. When falling back
+# to Haar cascades we synthesize these indices into a landmarks list so the
+# rest of the pipeline can remain unchanged.
 FACE_LANDMARKS = {
     "left_eye": [33, 133, 160, 159, 158, 157, 173, 246],
     "right_eye": [362, 263, 387, 386, 385, 384, 398, 466],
@@ -24,14 +33,47 @@ def to_pil(image_cv):
 
 def get_landmarks(img):
     h, w = img.shape[:2]
-    with mp_face.FaceMesh(static_image_mode=True, max_num_faces=1) as fm:
-        results = fm.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        if not results.multi_face_landmarks:
-            return None
-        coords = []
-        for lm in results.multi_face_landmarks[0].landmark:
-            coords.append((int(lm.x * w), int(lm.y * h)))
-        return coords
+    if HAS_MEDIAPIPE:
+        with mp_face.FaceMesh(static_image_mode=True, max_num_faces=1) as fm:
+            results = fm.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            if not results.multi_face_landmarks:
+                return None
+            coords = []
+            for lm in results.multi_face_landmarks[0].landmark:
+                coords.append((int(lm.x * w), int(lm.y * h)))
+            return coords
+
+    # Fallback: use Haar cascade to detect a face and synthesize approximate
+    # landmark positions. This is less accurate than MediaPipe but fast and
+    # doesn't require heavy native dependencies.
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    face_cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    face_cascade = cv2.CascadeClassifier(face_cascade_path)
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+    if len(faces) == 0:
+        return None
+    x, y, fw, fh = faces[0]
+
+    # Create a large landmarks array and fill only indices referenced by
+    # FACE_LANDMARKS so existing helpers can operate unchanged.
+    coords = [(0, 0)] * 500
+
+    # approximate left/right eye centers
+    left_eye_center = (int(x + fw * 0.3), int(y + fh * 0.35))
+    right_eye_center = (int(x + fw * 0.7), int(y + fh * 0.35))
+    nose_center = (int(x + fw * 0.5), int(y + fh * 0.5))
+    mouth_center = (int(x + fw * 0.5), int(y + fh * 0.75))
+
+    for i, pt in enumerate(FACE_LANDMARKS["left_eye"]):
+        coords[pt] = (left_eye_center[0] + np.random.randint(-6, 6), left_eye_center[1] + np.random.randint(-4, 4))
+    for i, pt in enumerate(FACE_LANDMARKS["right_eye"]):
+        coords[pt] = (right_eye_center[0] + np.random.randint(-6, 6), right_eye_center[1] + np.random.randint(-4, 4))
+    for i, pt in enumerate(FACE_LANDMARKS["nose_tip"]):
+        coords[pt] = (nose_center[0] + np.random.randint(-4, 4), nose_center[1] + np.random.randint(-4, 4))
+    for i, pt in enumerate(FACE_LANDMARKS["mouth"]):
+        coords[pt] = (mouth_center[0] + np.random.randint(-8, 8), mouth_center[1] + np.random.randint(-6, 6))
+
+    return coords
 
 
 def bounding_rect_from_idxs(landmarks, idxs, pad=10):
