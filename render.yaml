@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: caricatura
+    env: docker
+    plan: free
+    repo: https://github.com/nathanmohrr/gerador-caricatura.git
+    autoDeploy: true
+    envVars:
+      - key: REPLICATE_API_TOKEN
+        value: ""
+      - key: REPLICATE_MODEL_VERSION
+        value: ""
+    healthCheckPath: /health
+    disk:
+      name: cache
+      mountPath: /cache
