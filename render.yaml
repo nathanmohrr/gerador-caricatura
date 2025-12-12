@@ -11,6 +11,5 @@ services:
       - key: REPLICATE_MODEL_VERSION
         value: ""
     healthCheckPath: /health
-    disk:
-      name: cache
-      mountPath: /cache
+    # Removed `disk` section because disks are not supported on Render free tier.
+    # If you need persistent disk, change `plan` to a paid plan and re-add this block.
