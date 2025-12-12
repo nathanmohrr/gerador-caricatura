@@ -1,0 +1,7 @@
+gradio
+opencv-python
+mediapipe
+numpy
+Pillow
+fastapi
+uvicorn

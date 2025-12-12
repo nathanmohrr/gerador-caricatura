@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  caricatura:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      - REPLICATE_API_TOKEN=
+      - REPLICATE_MODEL_VERSION=
+    restart: unless-stopped
